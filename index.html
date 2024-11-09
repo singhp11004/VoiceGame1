@@ -31,7 +31,7 @@
 
       recognition.onresult = (event) => {
         const command = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-        lastCommand = Last heard: ${command};
+        lastCommand = `Last heard: ${command}`;
         
         if (commands.includes(command)) {
           fireBullet(command.toUpperCase());
@@ -76,7 +76,7 @@
       textSize(16);
       textAlign(LEFT);
       text(lastCommand, -width / 2 + 10, -height / 2 + 20);
-      text(Score: ${score}, -width / 2 + 10, -height / 2 + 40);
+      text(`Score: ${score}`, -width / 2 + 10, -height / 2 + 40);
       
       // Draw command hints
       textAlign(CENTER);
@@ -92,7 +92,7 @@
       textAlign(CENTER);
       text('Game Over!', 0, -20);
       textSize(24);
-      text(Final Score: ${score}, 0, 20);
+      text(`Final Score: ${score}`, 0, 20);
       text('Click to restart', 0, 60);
     }
 
