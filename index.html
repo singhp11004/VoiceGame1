@@ -2,158 +2,302 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Voice-Controlled Game</title>
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.4.1/lib/p5.js"></script>
+  <title>Enhanced Voice-Controlled Game</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.1/p5.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #0a0a0a;
+      font-family: Arial, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #gameContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #controls {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .direction-hint {
+      position: absolute;
+      padding: 15px 30px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 25px;
+      transition: all 0.3s ease;
+      font-size: 1.2em;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+
+    .direction-hint.up { top: 40px; left: 50%; transform: translateX(-50%); }
+    .direction-hint.down { bottom: 40px; left: 50%; transform: translateX(-50%); }
+    .direction-hint.left { left: 40px; top: 50%; transform: translateY(-50%); }
+    .direction-hint.right { right: 40px; top: 50%; transform: translateY(-50%); }
+
+    #status {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px 30px;
+      border-radius: 15px;
+      z-index: 100;
+      font-size: 1.2em;
+    }
+
+    #speedControl {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 15px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type="range"] {
+      width: 200px;
+    }
+  </style>
 </head>
 <body>
+  <div id="status">Click to Start</div>
+  <div id="gameContainer">
+    <div id="controls">
+      <div class="direction-hint up">Say "UP"</div>
+      <div class="direction-hint down">Say "DOWN"</div>
+      <div class="direction-hint left">Say "LEFT"</div>
+      <div class="direction-hint right">Say "RIGHT"</div>
+    </div>
+  </div>
+  <div id="speedControl">
+    <label for="enemySpeedControl">Enemy Speed</label>
+    <input type="range" id="enemySpeedControl" min="0.5" max="3" step="0.1" value="1">
+    <label for="spawnRateControl">Spawn Rate</label>
+    <input type="range" id="spawnRateControl" min="500" max="3000" step="100" value="2000">
+  </div>
+
   <script>
-    let playerSize = 50;
+    let playerSize = 60;
     let score = 0;
     let gameOver = false;
     let enemySpeed = 1;
+    let spawnRate = 2000;
     let recognition;
     let lastCommand = "";
     let bullets = [];
     let enemies = [];
+    let particles = [];
     let commands = ["up", "down", "left", "right"];
+    let canvas;
+    let playerPulse = 0;
+    let statusElement;
+    let spawnInterval;
+    let gameStarted = false;
 
     function setup() {
-      createCanvas(600, 600);
-      frameRate(30);
+      canvas = createCanvas(windowWidth, windowHeight);
+      canvas.parent('gameContainer');
+      frameRate(60);
+      
+      statusElement = document.getElementById('status');
+      
+      // Initialize with larger player size for full screen
+      playerSize = min(width, height) / 10;
+
+      // Setup click to start
+      canvas.mousePressed(() => {
+        if (!gameStarted) {
+          startGame();
+        } else if (gameOver) {
+          resetGame();
+        }
+      });
+    }
+
+    function startGame() {
+      gameStarted = true;
       setupVoiceRecognition();
-      setInterval(spawnEnemy, 2000);
+      setupControls();
+      startSpawning();
+      updateStatus('Game Started - Voice Recognition Active!');
+    }
+
+    function setupControls() {
+      document.getElementById('enemySpeedControl').addEventListener('input', function(e) {
+        enemySpeed = parseFloat(e.target.value);
+      });
+
+      document.getElementById('spawnRateControl').addEventListener('input', function(e) {
+        spawnRate = parseInt(e.target.value);
+        startSpawning();
+      });
+    }
+
+    function startSpawning() {
+      if (spawnInterval) clearInterval(spawnInterval);
+      spawnInterval = setInterval(spawnEnemy, spawnRate);
     }
 
     function setupVoiceRecognition() {
-      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      try {
+        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.continuous = true;
+        recognition.interimResults = true;
 
-      recognition.onresult = (event) => {
-        const command = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-        lastCommand = `Last heard: ${command}`;
-        
-        if (commands.includes(command)) {
-          fireBullet(command.toUpperCase());
-        }
-      };
+        recognition.onstart = () => {
+          updateStatus('Voice Recognition Active - Speak a direction!');
+        };
 
-      recognition.onend = () => {
-        if (!gameOver) recognition.start();
-      };
+        recognition.onresult = (event) => {
+          const results = event.results[event.results.length - 1];
+          for (let i = 0; i < results.length; i++) {
+            const command = results[i].transcript.toLowerCase().trim();
+            if (commands.includes(command)) {
+              lastCommand = `Last heard: ${command}`;
+              fireBullet(command.toUpperCase());
+              highlightDirection(command);
+              break;
+            }
+          }
+        };
 
-      recognition.start();
+        recognition.onerror = (event) => {
+          updateStatus('Error: ' + event.error);
+          // Attempt to restart recognition after error
+          setTimeout(() => {
+            if (!gameOver && gameStarted) recognition.start();
+          }, 1000);
+        };
+
+        recognition.onend = () => {
+          if (!gameOver && gameStarted) recognition.start();
+        };
+
+        recognition.start();
+      } catch (e) {
+        updateStatus('Error: Speech recognition not supported in this browser');
+      }
+    }
+
+    function updateStatus(message) {
+      statusElement.textContent = message;
+    }
+
+    function highlightDirection(direction) {
+      const element = document.querySelector(`.direction-hint.${direction}`);
+      if (element) {
+        element.style.background = 'rgba(255, 255, 255, 0.3)';
+        setTimeout(() => {
+          element.style.background = 'rgba(255, 255, 255, 0.1)';
+        }, 200);
+      }
     }
 
     function draw() {
-      background(0);
-      translate(width / 2, height / 2);
+      background(10, 10, 15);
       
-      if (!gameOver) {
-        // Draw player
+      if (!gameStarted) {
+        // Draw start screen
         fill(255);
-        circle(0, 0, playerSize);
+        textAlign(CENTER, CENTER);
+        textSize(32);
+        text('Click to Start', width/2, height/2);
+        return;
+      }
 
+      push();
+      translate(width/2, height/2);
+      
+      // Draw player
+      fill(255);
+      circle(0, 0, playerSize);
+      
+      // Update and draw game elements
+      if (!gameOver) {
         // Update and draw bullets
         for (let bullet of bullets) {
-          if (!bullet.spent) bullet.update();
+          bullet.update();
+          bullet.display();
         }
-
+        
         // Update and draw enemies
         for (let enemy of enemies) {
           enemy.update();
+          enemy.display();
         }
-
-        // Draw score and last command
-        drawHUD();
+        
+        // Draw score
+        fill(255);
+        textAlign(LEFT);
+        textSize(24);
+        text(`Score: ${score}`, -width/2 + 20, -height/2 + 40);
       } else {
-        drawGameOver();
+        // Draw game over screen
+        fill(255);
+        textAlign(CENTER);
+        textSize(48);
+        text('Game Over!', 0, 0);
+        textSize(24);
+        text(`Final Score: ${score}`, 0, 50);
+        text('Click to Restart', 0, 100);
       }
-    }
-
-    function drawHUD() {
-      fill(255);
-      textSize(16);
-      textAlign(LEFT);
-      text(lastCommand, -width / 2 + 10, -height / 2 + 20);
-      text(`Score: ${score}`, -width / 2 + 10, -height / 2 + 40);
       
-      // Draw command hints
-      textAlign(CENTER);
-      text("Say 'up'", 0, -height / 2 + 20);
-      text("Say 'down'", 0, height / 2 - 20);
-      text("Say 'left'", -width / 2 + 60, 0);
-      text("Say 'right'", width / 2 - 60, 0);
+      pop();
     }
 
-    function drawGameOver() {
-      fill(255);
-      textSize(32);
-      textAlign(CENTER);
-      text('Game Over!', 0, -20);
-      textSize(24);
-      text(`Final Score: ${score}`, 0, 20);
-      text('Click to restart', 0, 60);
-    }
-
-    function mousePressed() {
-      if (gameOver) {
-        resetGame();
-      }
-    }
-
-    function resetGame() {
-      score = 0;
-      gameOver = false;
-      enemies = [];
-      bullets = [];
-      enemySpeed = 1;
-      recognition.start();
-    }
-
-    function fireBullet(direction) {
-      bullets.push(new Bullet(direction));
-    }
-
-    function spawnEnemy() {
-      if (!gameOver) {
-        let direction = random(commands).toUpperCase();
-        enemies.push(new Enemy(direction, width / 3));
-      }
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      playerSize = min(width, height) / 10;
     }
 
     class Enemy {
       constructor(direction, distance) {
         this.direction = direction;
-        this.size = 25;
+        this.size = playerSize * 0.5;
         this.x = direction === "LEFT" ? -distance : direction === "RIGHT" ? distance : 0;
         this.y = direction === "UP" ? -distance : direction === "DOWN" ? distance : 0;
       }
 
       update() {
-        this.move();
-        this.checkCollision();
-        this.display();
-      }
-
-      move() {
         switch(this.direction) {
           case "UP": this.y += enemySpeed; break;
           case "DOWN": this.y -= enemySpeed; break;
           case "LEFT": this.x += enemySpeed; break;
           case "RIGHT": this.x -= enemySpeed; break;
         }
-      }
-
-      checkCollision() {
-        if (dist(this.x, this.y, 0, 0) < (playerSize + this.size) / 2) {
+        
+        if (dist(this.x, this.y, 0, 0) < playerSize/2) {
           gameOver = true;
-          recognition.stop();
+          if (recognition) recognition.stop();
+          updateStatus('Game Over! Click to restart');
         }
       }
 
       display() {
-        fill(100);
+        fill(255, 0, 0);
         circle(this.x, this.y, this.size);
       }
     }
@@ -161,33 +305,28 @@
     class Bullet {
       constructor(direction) {
         this.direction = direction;
-        this.size = 8;
-        this.speed = 5;
         this.x = 0;
         this.y = 0;
+        this.size = playerSize * 0.2;
+        this.speed = 10;
         this.spent = false;
       }
 
       update() {
-        this.move();
-        this.checkCollision();
-        this.display();
-      }
-
-      move() {
+        if (this.spent) return;
+        
         switch(this.direction) {
           case "UP": this.y -= this.speed; break;
           case "DOWN": this.y += this.speed; break;
           case "LEFT": this.x -= this.speed; break;
           case "RIGHT": this.x += this.speed; break;
         }
-      }
-
-      checkCollision() {
-        for (let enemy of enemies) {
-          if (dist(this.x, this.y, enemy.x, enemy.y) < (this.size + enemy.size) / 2) {
+        
+        // Check enemy collisions
+        for (let i = enemies.length - 1; i >= 0; i--) {
+          if (dist(this.x, this.y, enemies[i].x, enemies[i].y) < enemies[i].size) {
+            enemies.splice(i, 1);
             this.spent = true;
-            enemies = enemies.filter(e => e !== enemy);
             score++;
             break;
           }
@@ -196,10 +335,33 @@
 
       display() {
         if (!this.spent) {
-          fill(255, 0, 0);
+          fill(255, 255, 0);
           circle(this.x, this.y, this.size);
         }
       }
+    }
+
+    function spawnEnemy() {
+      if (!gameOver && gameStarted) {
+        let direction = commands[floor(random(commands.length))].toUpperCase();
+        let distance = min(width, height) / 2;
+        enemies.push(new Enemy(direction, distance));
+      }
+    }
+
+    function fireBullet(direction) {
+      bullets.push(new Bullet(direction));
+    }
+
+    function resetGame() {
+      score = 0;
+      gameOver = false;
+      enemies = [];
+      bullets = [];
+      enemySpeed = parseFloat(document.getElementById('enemySpeedControl').value);
+      startSpawning();
+      if (recognition) recognition.start();
+      updateStatus('Game Reset - Voice Recognition Active!');
     }
   </script>
 </body>
