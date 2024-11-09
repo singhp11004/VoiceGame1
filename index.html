@@ -81,6 +81,85 @@
       width: 200px;
     }
   </style>
+  <title>Enhanced Voice-Controlled Game</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.1/p5.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #0a0a0a;
+      font-family: Arial, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #gameContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #controls {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .direction-hint {
+      position: absolute;
+      padding: 15px 30px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 25px;
+      transition: all 0.3s ease;
+      font-size: 1.2em;
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    }
+
+    .direction-hint.up { top: 40px; left: 50%; transform: translateX(-50%); }
+    .direction-hint.down { bottom: 40px; left: 50%; transform: translateX(-50%); }
+    .direction-hint.left { left: 40px; top: 50%; transform: translateY(-50%); }
+    .direction-hint.right { right: 40px; top: 50%; transform: translateY(-50%); }
+
+    #status {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px 30px;
+      border-radius: 15px;
+      z-index: 100;
+      font-size: 1.2em;
+    }
+
+    #speedControl {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 15px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    input[type="range"] {
+      width: 200px;
+    }
+  </style>
 </head>
 <body>
   <div id="status">Click to Start</div>
